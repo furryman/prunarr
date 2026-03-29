@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="view-transition" content="same-origin">
+    <title>Prunarr</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <span class="logo">&#9986; Prunarr</span>
+        </div>
+        <div class="nav-right">
+            <span class="last-scan" id="lastScanTime"></span>
+            <button class="scan-btn" id="scanBtn" aria-label="Scan media library">
+                <svg class="scan-spinner" viewBox="0 0 24 24" width="16" height="16">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+                </svg>
+                <span class="scan-label">Scan Library</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Stats Bar -->
+    <section class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7"/><path d="M1 4h22v3H1z"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value" id="statTotalSize">--</span>
+                <span class="stat-label">Total Library Size</span>
+            </div>
+        </div>
+        <div class="stat-card reclaimable">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value" id="statReclaimable">--</span>
+                <span class="stat-label">Reclaimable Space</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value" id="statMovies">--</span>
+                <span class="stat-label">Total Movies</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M12 7v4l3 2"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value" id="statShows">--</span>
+                <span class="stat-label">Total Shows</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Bar -->
+    <div class="controls-bar">
+        <div class="tabs">
+            <button class="tab active" data-tab="movies">Movies</button>
+            <button class="tab" data-tab="shows">TV Shows</button>
+        </div>
+        <div class="filters">
+            <select id="sortSelect" aria-label="Sort order">
+                <option value="size_desc">Size &#8595;</option>
+                <option value="score_asc">Worst First</option>
+                <option value="name_asc">Name A-Z</option>
+                <option value="rating_desc">Rating &#8595;</option>
+                <option value="last_played_asc">Last Watched</option>
+            </select>
+            <select id="filterSelect" aria-label="Filter by recommendation">
+                <option value="all">All</option>
+                <option value="STRONG_DELETE">Strong Delete</option>
+                <option value="DELETE">Delete</option>
+                <option value="CONSIDER">Consider</option>
+                <option value="KEEP">Keep</option>
+                <option value="STRONG_KEEP">Strong Keep</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Media Grid -->
+    <main class="media-grid" id="mediaGrid" aria-label="Media library">
+        <!-- Cards rendered by JS -->
+    </main>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState" hidden>
+        <p>No media found. Click <strong>Scan Library</strong> to pull data from Radarr, Sonarr, and Tautulli.</p>
+    </div>
+
+    <!-- Sticky Action Bar -->
+    <div class="action-bar" id="actionBar">
+        <div class="action-info">
+            <span id="selectedCount">0 items selected</span>
+            <span class="action-size" id="selectedSize">(0 B)</span>
+        </div>
+        <button class="delete-btn" id="deleteBtn">Delete Selected</button>
+    </div>
+
+    <!-- Delete Confirmation Dialog (native <dialog>) -->
+    <dialog class="delete-dialog" id="deleteDialog">
+        <div class="dialog-content">
+            <h3>Confirm Deletion</h3>
+            <p id="dialogMessage">Are you sure you want to delete the selected items? This will remove files from disk.</p>
+            <div class="dialog-actions">
+                <button class="dialog-cancel" id="dialogCancel">Cancel</button>
+                <button class="dialog-confirm" id="dialogConfirm">Delete</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script type="module" src="/static/app.js"></script>
+</body>
+</html>
