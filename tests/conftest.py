@@ -6,7 +6,6 @@ import time
 from collections.abc import AsyncIterator
 from unittest.mock import patch
 
-import aiosqlite
 import pytest
 from httpx import ASGITransport, AsyncClient
 

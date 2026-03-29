@@ -767,9 +767,7 @@ async def api_save_settings(request: Request) -> dict[str, Any]:
     # Hash plaintext password before storing
     if "auth_password" in body and body["auth_password"]:
         plaintext = body["auth_password"]
-        body["auth_password"] = bcrypt.hashpw(
-            plaintext.encode(), bcrypt.gensalt()
-        ).decode()
+        body["auth_password"] = bcrypt.hashpw(plaintext.encode(), bcrypt.gensalt()).decode()
 
     save_settings(body)
     return {"status": "ok", "settings": get_all_settings()}

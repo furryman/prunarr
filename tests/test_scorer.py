@@ -197,9 +197,6 @@ class TestCustomWeightsAndThresholds:
     def test_custom_weights_scale_correctly(self):
         """Custom weights should shift scores proportionally."""
         now = int(time.time())
-        default = score_media(
-            rt_score=90, play_count=20, last_played_ts=now - 3600, unique_users=3
-        )
         # Give all weight to ratings, zero engagement
         custom = score_media(
             rt_score=90,

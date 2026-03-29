@@ -265,9 +265,7 @@ def get_all_settings(db_path: str | None = None) -> dict[str, object]:
     _ensure_settings_table(db_path)
 
     # 1. Start with defaults
-    merged: dict[str, object] = {
-        key: meta["default"] for key, meta in CONFIGURABLE_KEYS.items()
-    }
+    merged: dict[str, object] = {key: meta["default"] for key, meta in CONFIGURABLE_KEYS.items()}
 
     # 2. Override with environment-sourced values from the Settings object
     for key, attr in _KEY_TO_ENV_ATTR.items():
@@ -302,9 +300,7 @@ def get_setting(key: str, db_path: str | None = None) -> object:
     # Check DB first (highest priority)
     con = sqlite3.connect(db_path)
     try:
-        cursor = con.execute(
-            "SELECT value FROM app_settings WHERE key = ?", (key,)
-        )
+        cursor = con.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
         row = cursor.fetchone()
         if row is not None:
             return _coerce_value(row[0], meta)

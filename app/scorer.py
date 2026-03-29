@@ -219,18 +219,18 @@ def score_media(
     Returns:
         dict with keys: score, tier, reason, factors.
     """
-    # Determine effective max points for each factor
-    _DEF_RATINGS = 30.0
-    _DEF_ENGAGEMENT = 35.0
-    _DEF_RECENCY = 20.0
-    _DEF_BREADTH = 10.0
-    _DEF_CONTINUING = 5.0
+    # Built-in default max points for each factor
+    def_ratings = 30.0
+    def_engagement = 35.0
+    def_recency = 20.0
+    def_breadth = 10.0
+    def_continuing = 5.0
 
-    max_rating = float(weights["ratings"]) if weights else _DEF_RATINGS
-    max_engagement = float(weights["engagement"]) if weights else _DEF_ENGAGEMENT
-    max_recency = float(weights["recency"]) if weights else _DEF_RECENCY
-    max_breadth = float(weights["breadth"]) if weights else _DEF_BREADTH
-    max_continuing = float(weights["continuing"]) if weights else _DEF_CONTINUING
+    max_rating = float(weights["ratings"]) if weights else def_ratings
+    max_engagement = float(weights["engagement"]) if weights else def_engagement
+    max_recency = float(weights["recency"]) if weights else def_recency
+    max_breadth = float(weights["breadth"]) if weights else def_breadth
+    max_continuing = float(weights["continuing"]) if weights else def_continuing
 
     # Get raw scores (scaled to their built-in maxes) then rescale
     rating_pts, rating_desc = _score_ratings(rt_score, metacritic, imdb_score)
@@ -239,10 +239,10 @@ def score_media(
     breadth_pts, breadth_desc = _score_user_breadth(unique_users)
 
     # Scale each factor proportionally to the configured weight
-    rating_pts = rating_pts * (max_rating / _DEF_RATINGS) if _DEF_RATINGS else 0.0
-    engagement_pts = engagement_pts * (max_engagement / _DEF_ENGAGEMENT) if _DEF_ENGAGEMENT else 0.0
-    recency_pts = recency_pts * (max_recency / _DEF_RECENCY) if _DEF_RECENCY else 0.0
-    breadth_pts = breadth_pts * (max_breadth / _DEF_BREADTH) if _DEF_BREADTH else 0.0
+    rating_pts = rating_pts * (max_rating / def_ratings) if def_ratings else 0.0
+    engagement_pts = engagement_pts * (max_engagement / def_engagement) if def_engagement else 0.0
+    recency_pts = recency_pts * (max_recency / def_recency) if def_recency else 0.0
+    breadth_pts = breadth_pts * (max_breadth / def_breadth) if def_breadth else 0.0
 
     # Continuing series bonus: max_continuing points if still airing and watched at least once
     continuing_pts = max_continuing if (is_continuing and play_count > 0) else 0.0

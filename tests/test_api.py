@@ -53,8 +53,13 @@ class TestPosterProxy:
 class TestDeleteEndpoints:
     async def test_delete_movie_mocked(self, client: AsyncClient, test_db: str):
         conn = sqlite3.connect(test_db)
-        conn.execute("INSERT INTO media (radarr_id, title, media_type, size_bytes) VALUES (?, ?, ?, ?)", (101, "Test Movie", "movie", 1000))
-        conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("radarr_url", "http://radarr:7878"))
+        conn.execute(
+            "INSERT INTO media (radarr_id, title, media_type, size_bytes) VALUES (?, ?, ?, ?)",
+            (101, "Test Movie", "movie", 1000),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("radarr_url", "http://radarr:7878")
+        )
         conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("radarr_api_key", "test-key"))
         conn.commit()
         conn.close()
@@ -73,8 +78,13 @@ class TestDeleteEndpoints:
 
     async def test_delete_show_mocked(self, client: AsyncClient, test_db: str):
         conn = sqlite3.connect(test_db)
-        conn.execute("INSERT INTO media (sonarr_id, title, media_type, size_bytes) VALUES (?, ?, ?, ?)", (201, "Test Show", "show", 2000))
-        conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("sonarr_url", "http://sonarr:8989"))
+        conn.execute(
+            "INSERT INTO media (sonarr_id, title, media_type, size_bytes) VALUES (?, ?, ?, ?)",
+            (201, "Test Show", "show", 2000),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("sonarr_url", "http://sonarr:8989")
+        )
         conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("sonarr_api_key", "test-key"))
         conn.commit()
         conn.close()
