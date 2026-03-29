@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import secrets
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -10,13 +11,25 @@ from typing import Annotated, Any
 from urllib.parse import urlparse
 
 import aiosqlite
+import bcrypt
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.config import settings
+from app.config import (
+    CONFIGURABLE_KEYS,
+    _ensure_settings_table,
+    get_all_settings,
+    get_effective_service_config,
+    get_scoring_weights,
+    get_setting,
+    get_tier_thresholds,
+    save_settings,
+    settings,
+)
 from app.models import StatsResponse
 from app.scorer import DELETE, STRONG_DELETE, format_size, score_media
 
@@ -58,12 +71,71 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(CREATE_TABLE_SQL)
         await db.commit()
+    _ensure_settings_table(DB_PATH)
     yield
 
 
 app = FastAPI(title="Prunarr", version="1.0.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
+
+# ---------------------------------------------------------------------------
+# Session-based authentication
+# ---------------------------------------------------------------------------
+
+# In-memory session store: maps session token -> expiry timestamp
+_sessions: dict[str, float] = {}
+_SESSION_TTL = 86400 * 7  # 7 days
+
+# Routes that never require auth
+_PUBLIC_PATHS: set[str] = {"/api/login", "/login", "/static"}
+
+
+def _is_auth_required() -> bool:
+    """Check whether authentication is enabled and a password is set."""
+    auth_enabled = get_setting("auth_enabled")
+    auth_password = get_setting("auth_password")
+    return bool(auth_enabled and auth_password)
+
+
+def _is_public_path(path: str) -> bool:
+    """Return True if the path should be accessible without authentication."""
+    if path.startswith("/static"):
+        return True
+    return path in _PUBLIC_PATHS
+
+
+def _validate_session(token: str | None) -> bool:
+    """Return True if the session token is valid and not expired."""
+    if not token:
+        return False
+    expiry = _sessions.get(token)
+    if expiry is None:
+        return False
+    if time.time() > expiry:
+        _sessions.pop(token, None)
+        return False
+    return True
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Enforce session authentication when auth is enabled."""
+
+    async def dispatch(self, request: Request, call_next):  # noqa: ANN001
+        if _is_auth_required() and not _is_public_path(request.url.path):
+            session_token = request.cookies.get("prunarr_session")
+            if not _validate_session(session_token):
+                # API requests get 401; browser requests get redirected to /login
+                if request.url.path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Authentication required"},
+                    )
+                return RedirectResponse(url="/login", status_code=302)
+        return await call_next(request)
+
+
+app.add_middleware(AuthMiddleware)
 
 
 def _format_last_played(ts: int | None) -> str:
@@ -103,12 +175,15 @@ def _rating_or_none(value: int | float | None) -> int | float | None:
 
 async def _fetch_radarr_movies() -> list[dict[str, Any]]:
     """Fetch all movies from Radarr API."""
-    if not settings.RADARR_URL or not settings.RADARR_API_KEY:
+    svc = get_effective_service_config()
+    radarr_url = svc["radarr_url"]
+    radarr_api_key = svc["radarr_api_key"]
+    if not radarr_url or not radarr_api_key:
         return []
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.get(
-            f"{settings.RADARR_URL.rstrip('/')}/api/v3/movie",
-            headers={"X-Api-Key": settings.RADARR_API_KEY},
+            f"{radarr_url.rstrip('/')}/api/v3/movie",
+            headers={"X-Api-Key": radarr_api_key},
         )
         resp.raise_for_status()
         movies: list[dict[str, Any]] = resp.json()
@@ -136,12 +211,15 @@ async def _fetch_radarr_movies() -> list[dict[str, Any]]:
 
 async def _fetch_sonarr_series() -> list[dict[str, Any]]:
     """Fetch all series from Sonarr API."""
-    if not settings.SONARR_URL or not settings.SONARR_API_KEY:
+    svc = get_effective_service_config()
+    sonarr_url = svc["sonarr_url"]
+    sonarr_api_key = svc["sonarr_api_key"]
+    if not sonarr_url or not sonarr_api_key:
         return []
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.get(
-            f"{settings.SONARR_URL.rstrip('/')}/api/v3/series",
-            headers={"X-Api-Key": settings.SONARR_API_KEY},
+            f"{sonarr_url.rstrip('/')}/api/v3/series",
+            headers={"X-Api-Key": sonarr_api_key},
         )
         resp.raise_for_status()
         series_list: list[dict[str, Any]] = resp.json()
@@ -173,7 +251,10 @@ async def _fetch_tautulli_history() -> dict[str, dict[str, Any]]:
     Returns a dict keyed by lowercase title with:
       {play_count, last_played, unique_users}
     """
-    if not settings.TAUTULLI_URL or not settings.TAUTULLI_API_KEY:
+    svc = get_effective_service_config()
+    tautulli_url = svc["tautulli_url"]
+    tautulli_api_key = svc["tautulli_api_key"]
+    if not tautulli_url or not tautulli_api_key:
         return {}
 
     history_map: dict[str, dict[str, Any]] = {}
@@ -183,9 +264,9 @@ async def _fetch_tautulli_history() -> dict[str, dict[str, Any]]:
     async with httpx.AsyncClient(timeout=120.0) as client:
         while True:
             resp = await client.get(
-                f"{settings.TAUTULLI_URL.rstrip('/')}/api/v2",
+                f"{tautulli_url.rstrip('/')}/api/v2",
                 params={
-                    "apikey": settings.TAUTULLI_API_KEY,
+                    "apikey": tautulli_api_key,
                     "cmd": "get_history",
                     "length": page_size,
                     "start": start,
@@ -265,6 +346,8 @@ async def _insert_movie(
     movie: dict[str, Any],
     history: dict[str, Any],
     now_ts: int,
+    weights: dict[str, float] | None = None,
+    thresholds: dict[str, float] | None = None,
 ) -> None:
     """Score and insert a movie into the database."""
     rec = score_media(
@@ -275,6 +358,8 @@ async def _insert_movie(
         last_played_ts=history["last_played"] or None,
         size_bytes=movie["size_bytes"],
         unique_users=history["unique_users"],
+        weights=weights,
+        thresholds=thresholds,
     )
     await db.execute(
         """INSERT INTO media (radarr_id, title, year, size_bytes, poster_url,
@@ -311,6 +396,8 @@ async def _insert_show(
     show: dict[str, Any],
     history: dict[str, Any],
     now_ts: int,
+    weights: dict[str, float] | None = None,
+    thresholds: dict[str, float] | None = None,
 ) -> None:
     """Score and insert a show into the database."""
     is_continuing = show.get("status", "").lower() == "continuing"
@@ -322,6 +409,8 @@ async def _insert_show(
         unique_users=history["unique_users"],
         is_continuing=is_continuing,
         total_episodes=show.get("episodes", 0),
+        weights=weights,
+        thresholds=thresholds,
     )
     await db.execute(
         """INSERT INTO media (sonarr_id, title, year, size_bytes, poster_url,
@@ -387,6 +476,8 @@ async def scan_library() -> dict[str, str | int]:
     )
 
     now_ts = int(time.time())
+    weights = get_scoring_weights()
+    thresholds = get_tier_thresholds()
 
     async with aiosqlite.connect(DB_PATH) as db:
         # Clear old data for a clean scan
@@ -394,11 +485,11 @@ async def scan_library() -> dict[str, str | int]:
 
         for movie in movies_data:
             history = _match_history(movie["title"], history_map)
-            await _insert_movie(db, movie, history, now_ts)
+            await _insert_movie(db, movie, history, now_ts, weights, thresholds)
 
         for show in shows_data:
             history = _match_history(show["title"], history_map)
-            await _insert_show(db, show, history, now_ts)
+            await _insert_show(db, show, history, now_ts, weights, thresholds)
 
         await db.commit()
 
@@ -494,14 +585,23 @@ async def get_stats() -> StatsResponse:
 @app.delete("/api/movies/{radarr_id}")
 async def delete_movie(radarr_id: int) -> dict[str, str | int]:
     """Delete a movie from Radarr and remove from local database."""
-    if not settings.RADARR_URL or not settings.RADARR_API_KEY:
+    svc = get_effective_service_config()
+    radarr_url = svc["radarr_url"]
+    radarr_api_key = svc["radarr_api_key"]
+    if not radarr_url or not radarr_api_key:
         raise HTTPException(status_code=500, detail="Radarr not configured")
+
+    delete_files = get_setting("delete_files_on_remove")
+    add_exclusion = get_setting("add_exclusion_on_remove")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.delete(
-            f"{settings.RADARR_URL.rstrip('/')}/api/v3/movie/{radarr_id}",
-            headers={"X-Api-Key": settings.RADARR_API_KEY},
-            params={"deleteFiles": "true", "addImportListExclusion": "true"},
+            f"{radarr_url.rstrip('/')}/api/v3/movie/{radarr_id}",
+            headers={"X-Api-Key": radarr_api_key},
+            params={
+                "deleteFiles": str(delete_files).lower(),
+                "addImportListExclusion": str(add_exclusion).lower(),
+            },
         )
         if resp.status_code not in (200, 202, 204):
             raise HTTPException(
@@ -519,14 +619,23 @@ async def delete_movie(radarr_id: int) -> dict[str, str | int]:
 @app.delete("/api/shows/{sonarr_id}")
 async def delete_show(sonarr_id: int) -> dict[str, str | int]:
     """Delete a show from Sonarr and remove from local database."""
-    if not settings.SONARR_URL or not settings.SONARR_API_KEY:
+    svc = get_effective_service_config()
+    sonarr_url = svc["sonarr_url"]
+    sonarr_api_key = svc["sonarr_api_key"]
+    if not sonarr_url or not sonarr_api_key:
         raise HTTPException(status_code=500, detail="Sonarr not configured")
+
+    delete_files = get_setting("delete_files_on_remove")
+    add_exclusion = get_setting("add_exclusion_on_remove")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.delete(
-            f"{settings.SONARR_URL.rstrip('/')}/api/v3/series/{sonarr_id}",
-            headers={"X-Api-Key": settings.SONARR_API_KEY},
-            params={"deleteFiles": "true", "addImportListExclusion": "true"},
+            f"{sonarr_url.rstrip('/')}/api/v3/series/{sonarr_id}",
+            headers={"X-Api-Key": sonarr_api_key},
+            params={
+                "deleteFiles": str(delete_files).lower(),
+                "addImportListExclusion": str(add_exclusion).lower(),
+            },
         )
         if resp.status_code not in (200, 202, 204):
             raise HTTPException(
@@ -556,7 +665,8 @@ def _is_allowed_poster_url(url: str) -> bool:
     host = parsed.hostname or ""
 
     # Allow configured Radarr/Sonarr hosts
-    for service_url in (settings.RADARR_URL, settings.SONARR_URL):
+    svc = get_effective_service_config()
+    for service_url in (svc["radarr_url"], svc["sonarr_url"]):
         if service_url:
             service_host = urlparse(service_url).hostname
             if service_host and host == service_host:
@@ -577,11 +687,12 @@ async def proxy_poster(
         raise HTTPException(status_code=403, detail="URL host not allowed")
 
     # Determine which API key to attach based on the URL
+    svc = get_effective_service_config()
     headers: dict[str, str] = {}
-    if settings.RADARR_URL and settings.RADARR_URL.rstrip("/") in url:
-        headers["X-Api-Key"] = settings.RADARR_API_KEY
-    elif settings.SONARR_URL and settings.SONARR_URL.rstrip("/") in url:
-        headers["X-Api-Key"] = settings.SONARR_API_KEY
+    if svc["radarr_url"] and svc["radarr_url"].rstrip("/") in url:
+        headers["X-Api-Key"] = svc["radarr_api_key"]
+    elif svc["sonarr_url"] and svc["sonarr_url"].rstrip("/") in url:
+        headers["X-Api-Key"] = svc["sonarr_api_key"]
 
     try:
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -591,6 +702,185 @@ async def proxy_poster(
             return Response(content=resp.content, media_type=content_type)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="Failed to fetch poster") from exc
+
+
+def _mask_secret(value: object, key: str) -> object:
+    """Mask API keys and password hashes for UI display.
+
+    Shows only the last 4 characters prefixed with asterisks.
+    """
+    meta = CONFIGURABLE_KEYS.get(key)
+    if meta and meta.get("type") == "password":
+        s = str(value) if value else ""
+        if len(s) > 4:
+            return "*" * 8 + s[-4:]
+        if s:
+            return "*" * 8
+        return ""
+    return value
+
+
+@app.get("/api/settings")
+async def api_get_settings() -> dict[str, Any]:
+    """Return all current settings and schema metadata for the UI.
+
+    API keys and password hashes are masked -- only the last 4 characters
+    are exposed so the user can confirm which key is configured.
+    """
+    raw = get_all_settings()
+    masked = {k: _mask_secret(v, k) for k, v in raw.items()}
+    return {
+        "settings": masked,
+        "schema": CONFIGURABLE_KEYS,
+    }
+
+
+@app.post("/api/settings")
+async def api_save_settings(request: Request) -> dict[str, Any]:
+    """Save one or more settings. Validates scoring weights sum to 100."""
+    body: dict[str, Any] = await request.json()
+
+    # Validate scoring weights sum to 100 if any weight key is present
+    weight_keys = [
+        "weight_ratings",
+        "weight_engagement",
+        "weight_recency",
+        "weight_breadth",
+        "weight_continuing",
+    ]
+    incoming_weight_keys = [k for k in weight_keys if k in body]
+    if incoming_weight_keys:
+        # Merge incoming weights with current values for keys not being updated
+        current = get_all_settings()
+        total = 0
+        for k in weight_keys:
+            if k in body:
+                total += int(body[k])
+            else:
+                total += int(current.get(k, CONFIGURABLE_KEYS[k]["default"]))
+        if total != 100:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Scoring weights must sum to 100 (got {total})",
+            )
+
+    # Hash plaintext password before storing
+    if "auth_password" in body and body["auth_password"]:
+        plaintext = body["auth_password"]
+        body["auth_password"] = bcrypt.hashpw(
+            plaintext.encode(), bcrypt.gensalt()
+        ).decode()
+
+    save_settings(body)
+    return {"status": "ok", "settings": get_all_settings()}
+
+
+def _is_safe_service_url(url: str) -> bool:
+    """Validate that a test-connection URL points to a plausible service host.
+
+    Blocks cloud metadata endpoints and non-HTTP schemes to mitigate SSRF.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    hostname = (parsed.hostname or "").lower()
+    # Block well-known cloud metadata endpoints
+    blocked = {"169.254.169.254", "metadata.google.internal"}
+    if hostname in blocked:
+        return False
+    return bool(hostname)
+
+
+@app.post("/api/settings/test-connection")
+async def api_test_connection(request: Request) -> dict[str, Any]:
+    """Test connectivity to Radarr, Sonarr, or Tautulli."""
+    body: dict[str, Any] = await request.json()
+    service = body.get("service", "").lower()
+    url = body.get("url", "").rstrip("/")
+    api_key = body.get("api_key", "")
+
+    if service not in ("radarr", "sonarr", "tautulli"):
+        raise HTTPException(status_code=400, detail=f"Unknown service: {service}")
+    if not url or not api_key:
+        raise HTTPException(status_code=400, detail="URL and API key are required")
+    if not _is_safe_service_url(url):
+        raise HTTPException(status_code=400, detail="Invalid or blocked URL")
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            if service in ("radarr", "sonarr"):
+                resp = await client.get(
+                    f"{url}/api/v3/system/status",
+                    headers={"X-Api-Key": api_key},
+                )
+            else:  # tautulli
+                resp = await client.get(
+                    f"{url}/api/v2",
+                    params={"apikey": api_key, "cmd": "get_tautulli_info"},
+                )
+            resp.raise_for_status()
+            return {"success": True, "message": f"Successfully connected to {service}"}
+    except httpx.HTTPStatusError as exc:
+        return {
+            "success": False,
+            "message": f"Connection failed: HTTP {exc.response.status_code}",
+        }
+    except Exception as exc:
+        return {"success": False, "message": f"Connection failed: {exc}"}
+
+
+@app.post("/api/login")
+async def api_login(request: Request) -> JSONResponse:
+    """Authenticate with password, return session cookie."""
+    body: dict[str, Any] = await request.json()
+    password = body.get("password", "")
+
+    if not password:
+        raise HTTPException(status_code=400, detail="Password is required")
+
+    stored_hash = get_setting("auth_password")
+    if not stored_hash:
+        raise HTTPException(status_code=400, detail="No password configured")
+
+    if not bcrypt.checkpw(password.encode(), str(stored_hash).encode()):
+        raise HTTPException(status_code=401, detail="Invalid password")
+
+    # Create session
+    token = secrets.token_urlsafe(32)
+    _sessions[token] = time.time() + _SESSION_TTL
+
+    response = JSONResponse(content={"status": "ok"})
+    response.set_cookie(
+        key="prunarr_session",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=_SESSION_TTL,
+    )
+    return response
+
+
+@app.post("/api/logout")
+async def api_logout(request: Request) -> JSONResponse:
+    """Invalidate the current session."""
+    token = request.cookies.get("prunarr_session")
+    if token:
+        _sessions.pop(token, None)
+    response = JSONResponse(content={"status": "ok"})
+    response.delete_cookie("prunarr_session")
+    return response
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request) -> HTMLResponse:
+    """Serve the login page."""
+    return templates.TemplateResponse(request, "login.html")
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request) -> HTMLResponse:
+    """Serve the settings page."""
+    return templates.TemplateResponse(request, "settings.html")
 
 
 @app.get("/", response_class=HTMLResponse)

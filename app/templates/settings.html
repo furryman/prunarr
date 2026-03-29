@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="view-transition" content="same-origin">
+    <title>Prunarr — Settings</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <a href="/" class="nav-back" aria-label="Back to dashboard">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+            </a>
+            <span class="logo">Settings</span>
+        </div>
+    </nav>
+
+    <div class="settings-container">
+        <!-- Service Connections -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M2 12h20"/><path d="M12 2c2.5 2.8 4 6.2 4 10s-1.5 7.2-4 10c-2.5-2.8-4-6.2-4-10s1.5-7.2 4-10z"/></svg>
+                Service Connections
+            </h2>
+
+            <!-- Radarr -->
+            <div class="service-group" data-service="radarr">
+                <h3 class="service-name">Radarr</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="radarr_url">URL</label>
+                        <input type="url" id="radarr_url" name="radarr_url" placeholder="http://radarr:7878">
+                    </div>
+                    <div class="form-group">
+                        <label for="radarr_api_key">API Key</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="radarr_api_key" name="radarr_api_key" placeholder="your-radarr-api-key">
+                            <button type="button" class="password-toggle" aria-label="Toggle visibility">
+                                <svg class="eye-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="eye-off-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="test-btn" data-service="radarr">
+                        <span class="test-label">Test</span>
+                        <span class="test-spinner" hidden>
+                            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg>
+                        </span>
+                        <span class="test-result" hidden></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sonarr -->
+            <div class="service-group" data-service="sonarr">
+                <h3 class="service-name">Sonarr</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="sonarr_url">URL</label>
+                        <input type="url" id="sonarr_url" name="sonarr_url" placeholder="http://sonarr:8989">
+                    </div>
+                    <div class="form-group">
+                        <label for="sonarr_api_key">API Key</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="sonarr_api_key" name="sonarr_api_key" placeholder="your-sonarr-api-key">
+                            <button type="button" class="password-toggle" aria-label="Toggle visibility">
+                                <svg class="eye-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="eye-off-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="test-btn" data-service="sonarr">
+                        <span class="test-label">Test</span>
+                        <span class="test-spinner" hidden>
+                            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg>
+                        </span>
+                        <span class="test-result" hidden></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tautulli -->
+            <div class="service-group" data-service="tautulli">
+                <h3 class="service-name">Tautulli</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tautulli_url">URL</label>
+                        <input type="url" id="tautulli_url" name="tautulli_url" placeholder="http://tautulli:8181">
+                    </div>
+                    <div class="form-group">
+                        <label for="tautulli_api_key">API Key</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="tautulli_api_key" name="tautulli_api_key" placeholder="your-tautulli-api-key">
+                            <button type="button" class="password-toggle" aria-label="Toggle visibility">
+                                <svg class="eye-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="eye-off-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="test-btn" data-service="tautulli">
+                        <span class="test-label">Test</span>
+                        <span class="test-spinner" hidden>
+                            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg>
+                        </span>
+                        <span class="test-result" hidden></span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Scoring Weights -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                Scoring Weights
+            </h2>
+            <p class="section-desc">Adjust how much each factor contributes to the overall score. Weights must sum to 100.</p>
+
+            <div class="weight-bar" id="weightBar"></div>
+
+            <div class="weights-grid" id="weightsGrid">
+                <div class="form-group weight-input">
+                    <label for="weight_ratings">Ratings</label>
+                    <input type="number" id="weight_ratings" name="weight_ratings" min="0" max="100" value="30">
+                </div>
+                <div class="form-group weight-input">
+                    <label for="weight_engagement">Engagement</label>
+                    <input type="number" id="weight_engagement" name="weight_engagement" min="0" max="100" value="35">
+                </div>
+                <div class="form-group weight-input">
+                    <label for="weight_recency">Recency</label>
+                    <input type="number" id="weight_recency" name="weight_recency" min="0" max="100" value="20">
+                </div>
+                <div class="form-group weight-input">
+                    <label for="weight_breadth">User Breadth</label>
+                    <input type="number" id="weight_breadth" name="weight_breadth" min="0" max="100" value="10">
+                </div>
+                <div class="form-group weight-input">
+                    <label for="weight_continuing">Continuing Series</label>
+                    <input type="number" id="weight_continuing" name="weight_continuing" min="0" max="100" value="5">
+                </div>
+            </div>
+
+            <div class="weight-sum" id="weightSum">
+                <span class="weight-sum-label">Total:</span>
+                <span class="weight-sum-value" id="weightSumValue">100</span>
+                <span class="weight-sum-status" id="weightSumStatus"></span>
+            </div>
+        </section>
+
+        <!-- Tier Thresholds -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                Tier Thresholds
+            </h2>
+            <p class="section-desc">Define score boundaries for each recommendation tier (0-100 scale).</p>
+
+            <div class="tier-visual" id="tierVisual"></div>
+
+            <div class="tiers-grid">
+                <div class="form-group tier-input">
+                    <label for="tier_strong_delete">
+                        <span class="tier-dot" style="background: var(--tier-strong-delete)"></span>
+                        Strong Delete (0 to)
+                    </label>
+                    <input type="range" id="tier_strong_delete" name="tier_strong_delete" min="0" max="100" value="20">
+                    <span class="range-value" id="tier_strong_delete_val">20</span>
+                </div>
+                <div class="form-group tier-input">
+                    <label for="tier_delete">
+                        <span class="tier-dot" style="background: var(--tier-delete)"></span>
+                        Delete (to)
+                    </label>
+                    <input type="range" id="tier_delete" name="tier_delete" min="0" max="100" value="40">
+                    <span class="range-value" id="tier_delete_val">40</span>
+                </div>
+                <div class="form-group tier-input">
+                    <label for="tier_consider">
+                        <span class="tier-dot" style="background: var(--tier-consider)"></span>
+                        Consider (to)
+                    </label>
+                    <input type="range" id="tier_consider" name="tier_consider" min="0" max="100" value="60">
+                    <span class="range-value" id="tier_consider_val">60</span>
+                </div>
+                <div class="form-group tier-input">
+                    <label for="tier_keep">
+                        <span class="tier-dot" style="background: var(--tier-keep)"></span>
+                        Keep (to)
+                    </label>
+                    <input type="range" id="tier_keep" name="tier_keep" min="0" max="100" value="80">
+                    <span class="range-value" id="tier_keep_val">80</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- General -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                General
+            </h2>
+            <div id="generalSettings" class="general-grid">
+                <!-- Rendered by JS -->
+            </div>
+        </section>
+    </div>
+
+    <!-- Sticky Save Bar -->
+    <div class="save-bar" id="saveBar">
+        <button class="save-btn" id="saveBtn">
+            <span class="save-label">Save Settings</span>
+            <span class="save-spinner" hidden>
+                <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg>
+            </span>
+        </button>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" hidden>
+        <span class="toast-message" id="toastMessage"></span>
+    </div>
+
+    <script type="module" src="/static/settings.js"></script>
+</body>
+</html>

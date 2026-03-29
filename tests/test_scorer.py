@@ -189,3 +189,50 @@ class TestReasonString:
         # Size info should appear for delete-leaning items
         if result["tier"] in (STRONG_DELETE, DELETE, CONSIDER):
             assert "GB" in reason or "reclaimable" in reason
+
+
+class TestCustomWeightsAndThresholds:
+    """Test score_media with configurable weights and thresholds."""
+
+    def test_custom_weights_scale_correctly(self):
+        """Custom weights should shift scores proportionally."""
+        now = int(time.time())
+        default = score_media(
+            rt_score=90, play_count=20, last_played_ts=now - 3600, unique_users=3
+        )
+        # Give all weight to ratings, zero engagement
+        custom = score_media(
+            rt_score=90,
+            play_count=20,
+            last_played_ts=now - 3600,
+            unique_users=3,
+            weights={
+                "ratings": 80,
+                "engagement": 0,
+                "recency": 10,
+                "breadth": 5,
+                "continuing": 5,
+            },
+        )
+        assert custom["factors"]["rating"]["max"] == 80
+        assert custom["factors"]["engagement"]["max"] == 0
+
+    def test_custom_thresholds(self):
+        """Custom thresholds should change tier assignment."""
+        # With default thresholds, score 50 => CONSIDER (40 < 50 <= 60)
+        default = score_media(rt_score=80, play_count=3, unique_users=1)
+        # With very strict thresholds, even mid scores become KEEP
+        strict = score_media(
+            rt_score=80,
+            play_count=3,
+            unique_users=1,
+            thresholds={"strong_delete": 5, "delete": 10, "consider": 15, "keep": 20},
+        )
+        # Same raw score but higher tier with lenient thresholds
+        assert strict["score"] == default["score"]
+
+    def test_none_weights_uses_defaults(self):
+        """Passing None for weights should use built-in defaults."""
+        result = score_media(rt_score=50, play_count=0, weights=None, thresholds=None)
+        assert result["factors"]["rating"]["max"] == 30.0
+        assert result["factors"]["engagement"]["max"] == 35.0

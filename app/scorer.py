@@ -153,15 +153,32 @@ def _score_user_breadth(unique_users: int) -> tuple[float, str]:
         return 10.0, f"{unique_users} users"
 
 
-def _get_tier(score: float) -> str:
-    """Map a numeric score (0-100) to a recommendation tier."""
-    if score <= 20:
+def _get_tier(
+    score: float,
+    thresholds: dict[str, float] | None = None,
+) -> str:
+    """Map a numeric score (0-100) to a recommendation tier.
+
+    When *thresholds* is provided it must contain keys
+    ``strong_delete``, ``delete``, ``consider``, ``keep``.
+    """
+    sd = 20.0
+    de = 40.0
+    co = 60.0
+    ke = 80.0
+    if thresholds is not None:
+        sd = thresholds.get("strong_delete", sd)
+        de = thresholds.get("delete", de)
+        co = thresholds.get("consider", co)
+        ke = thresholds.get("keep", ke)
+
+    if score <= sd:
         return STRONG_DELETE
-    elif score <= 40:
+    elif score <= de:
         return DELETE
-    elif score <= 60:
+    elif score <= co:
         return CONSIDER
-    elif score <= 80:
+    elif score <= ke:
         return KEEP
     else:
         return STRONG_KEEP
@@ -177,6 +194,8 @@ def score_media(
     unique_users: int = 0,
     is_continuing: bool = False,
     total_episodes: int = 0,
+    weights: dict[str, float] | None = None,
+    thresholds: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Score a media item and return a recommendation.
 
@@ -190,23 +209,49 @@ def score_media(
         unique_users: Number of distinct users who have watched.
         is_continuing: Whether the series is still airing new episodes.
         total_episodes: Total number of episodes (for series).
+        weights: Optional dict with keys ratings, engagement, recency, breadth,
+            continuing mapping to their max point values.  When None the
+            built-in defaults (30/35/20/10/5) are used.
+        thresholds: Optional dict with keys strong_delete, delete, consider, keep
+            mapping to score boundaries.  When None the built-in defaults
+            (20/40/60/80) are used.
 
     Returns:
         dict with keys: score, tier, reason, factors.
     """
+    # Determine effective max points for each factor
+    _DEF_RATINGS = 30.0
+    _DEF_ENGAGEMENT = 35.0
+    _DEF_RECENCY = 20.0
+    _DEF_BREADTH = 10.0
+    _DEF_CONTINUING = 5.0
+
+    max_rating = float(weights["ratings"]) if weights else _DEF_RATINGS
+    max_engagement = float(weights["engagement"]) if weights else _DEF_ENGAGEMENT
+    max_recency = float(weights["recency"]) if weights else _DEF_RECENCY
+    max_breadth = float(weights["breadth"]) if weights else _DEF_BREADTH
+    max_continuing = float(weights["continuing"]) if weights else _DEF_CONTINUING
+
+    # Get raw scores (scaled to their built-in maxes) then rescale
     rating_pts, rating_desc = _score_ratings(rt_score, metacritic, imdb_score)
     engagement_pts, engagement_desc = _score_engagement(play_count)
     recency_pts, recency_desc = _score_recency(last_played_ts)
     breadth_pts, breadth_desc = _score_user_breadth(unique_users)
 
-    # Continuing series bonus: 5 points if still airing and watched at least once
-    continuing_pts = 5.0 if (is_continuing and play_count > 0) else 0.0
+    # Scale each factor proportionally to the configured weight
+    rating_pts = rating_pts * (max_rating / _DEF_RATINGS) if _DEF_RATINGS else 0.0
+    engagement_pts = engagement_pts * (max_engagement / _DEF_ENGAGEMENT) if _DEF_ENGAGEMENT else 0.0
+    recency_pts = recency_pts * (max_recency / _DEF_RECENCY) if _DEF_RECENCY else 0.0
+    breadth_pts = breadth_pts * (max_breadth / _DEF_BREADTH) if _DEF_BREADTH else 0.0
+
+    # Continuing series bonus: max_continuing points if still airing and watched at least once
+    continuing_pts = max_continuing if (is_continuing and play_count > 0) else 0.0
     continuing_desc = "continuing series bonus" if continuing_pts > 0 else ""
 
     total = rating_pts + engagement_pts + recency_pts + breadth_pts + continuing_pts
     total = max(0.0, min(100.0, total))
 
-    tier = _get_tier(total)
+    tier = _get_tier(total, thresholds)
 
     # Build human-readable reason
     reason_parts = []
@@ -233,11 +278,11 @@ def score_media(
     reason = ", ".join(reason_parts)
 
     factors = {
-        "rating": {"points": round(rating_pts, 1), "max": 30, "detail": rating_desc},
-        "engagement": {"points": round(engagement_pts, 1), "max": 35, "detail": engagement_desc},
-        "recency": {"points": round(recency_pts, 1), "max": 20, "detail": recency_desc},
-        "user_breadth": {"points": round(breadth_pts, 1), "max": 10, "detail": breadth_desc},
-        "continuing_bonus": {"points": round(continuing_pts, 1), "max": 5, "detail": continuing_desc},
+        "rating": {"points": round(rating_pts, 1), "max": max_rating, "detail": rating_desc},
+        "engagement": {"points": round(engagement_pts, 1), "max": max_engagement, "detail": engagement_desc},
+        "recency": {"points": round(recency_pts, 1), "max": max_recency, "detail": recency_desc},
+        "user_breadth": {"points": round(breadth_pts, 1), "max": max_breadth, "detail": breadth_desc},
+        "continuing_bonus": {"points": round(continuing_pts, 1), "max": max_continuing, "detail": continuing_desc},
     }
 
     return {

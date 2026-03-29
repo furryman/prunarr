@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prunarr - Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2.5rem 2rem;
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+        .login-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 0.25rem;
+        }
+        .login-subtitle {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+        }
+        .login-input {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-size: 0.95rem;
+            font-family: var(--font);
+            outline: none;
+            transition: border-color var(--transition);
+        }
+        .login-input:focus {
+            border-color: var(--accent);
+        }
+        .login-btn {
+            width: 100%;
+            margin-top: 1rem;
+            padding: 0.7rem;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 0.95rem;
+            font-weight: 600;
+            font-family: var(--font);
+            cursor: pointer;
+            transition: background var(--transition);
+        }
+        .login-btn:hover {
+            background: var(--accent-hover);
+        }
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .login-error {
+            color: var(--tier-delete);
+            font-size: 0.85rem;
+            margin-top: 0.75rem;
+            min-height: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-logo">&#9986; Prunarr</div>
+            <div class="login-subtitle">Enter your password to continue</div>
+            <form id="loginForm">
+                <input
+                    type="password"
+                    class="login-input"
+                    id="passwordInput"
+                    placeholder="Password"
+                    autocomplete="current-password"
+                    autofocus
+                    required
+                >
+                <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
+                <div class="login-error" id="loginError"></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        const form = document.getElementById('loginForm');
+        const passwordInput = document.getElementById('passwordInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const errorEl = document.getElementById('loginError');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorEl.textContent = '';
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Signing in...';
+
+            try {
+                const resp = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: passwordInput.value }),
+                });
+                if (resp.ok) {
+                    window.location.href = '/';
+                } else {
+                    const data = await resp.json();
+                    errorEl.textContent = data.detail || 'Login failed';
+                }
+            } catch {
+                errorEl.textContent = 'Connection error';
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        });
+    </script>
+</body>
+</html>

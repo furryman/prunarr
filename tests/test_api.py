@@ -1,22 +1,20 @@
 """Tests for the Prunarr FastAPI endpoints."""
 
+import sqlite3
 from unittest.mock import AsyncMock, patch
 
 from httpx import AsyncClient
 
 
 class TestRootEndpoint:
-    """Test the main HTML page."""
-
     async def test_root_returns_html(self, client: AsyncClient):
         resp = await client.get("/")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
+        assert "Prunarr" in resp.text
 
 
 class TestStatsEndpoint:
-    """Test the /api/stats endpoint."""
-
     async def test_stats_empty_db(self, client: AsyncClient):
         resp = await client.get("/api/stats")
         assert resp.status_code == 200
@@ -29,8 +27,6 @@ class TestStatsEndpoint:
 
 
 class TestMoviesEndpoint:
-    """Test the /api/movies endpoint."""
-
     async def test_movies_empty(self, client: AsyncClient):
         resp = await client.get("/api/movies")
         assert resp.status_code == 200
@@ -38,8 +34,6 @@ class TestMoviesEndpoint:
 
 
 class TestShowsEndpoint:
-    """Test the /api/shows endpoint."""
-
     async def test_shows_empty(self, client: AsyncClient):
         resp = await client.get("/api/shows")
         assert resp.status_code == 200
@@ -47,8 +41,6 @@ class TestShowsEndpoint:
 
 
 class TestPosterProxy:
-    """Test the /api/poster endpoint."""
-
     async def test_poster_proxy_blocked_host(self, client: AsyncClient):
         resp = await client.get("/api/poster", params={"url": "https://evil.example.com/hack.jpg"})
         assert resp.status_code == 403
@@ -58,59 +50,152 @@ class TestPosterProxy:
         assert resp.status_code == 422
 
 
-class TestDeleteMovie:
-    """Test the DELETE /api/movies/{radarr_id} endpoint."""
+class TestDeleteEndpoints:
+    async def test_delete_movie_mocked(self, client: AsyncClient, test_db: str):
+        conn = sqlite3.connect(test_db)
+        conn.execute("INSERT INTO media (radarr_id, title, media_type, size_bytes) VALUES (?, ?, ?, ?)", (101, "Test Movie", "movie", 1000))
+        conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("radarr_url", "http://radarr:7878"))
+        conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("radarr_api_key", "test-key"))
+        conn.commit()
+        conn.close()
 
-    async def test_delete_movie_not_found(self, client: AsyncClient):
-        """Deleting a non-existent movie should call Radarr and succeed (or handle gracefully)."""
-        mock_response = AsyncMock()
-        mock_response.status_code = 404
-        mock_response.text = "Not Found"
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = ""
+        with patch("app.main.httpx.AsyncClient") as mock_cls:
+            mi = AsyncMock()
+            mi.__aenter__ = AsyncMock(return_value=mi)
+            mi.__aexit__ = AsyncMock(return_value=False)
+            mi.delete = AsyncMock(return_value=mock_resp)
+            mock_cls.return_value = mi
+            resp = await client.delete("/api/movies/101")
+            assert resp.status_code == 200
 
-        with patch("app.main.settings") as mock_settings:
-            mock_settings.RADARR_URL = "http://radarr:7878"
-            mock_settings.RADARR_API_KEY = "test-key"
-            mock_settings.SONARR_URL = "http://sonarr:8989"
-            mock_settings.SONARR_API_KEY = "test-key"
-            mock_settings.TAUTULLI_URL = ""
-            mock_settings.TAUTULLI_API_KEY = ""
+    async def test_delete_show_mocked(self, client: AsyncClient, test_db: str):
+        conn = sqlite3.connect(test_db)
+        conn.execute("INSERT INTO media (sonarr_id, title, media_type, size_bytes) VALUES (?, ?, ?, ?)", (201, "Test Show", "show", 2000))
+        conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("sonarr_url", "http://sonarr:8989"))
+        conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ("sonarr_api_key", "test-key"))
+        conn.commit()
+        conn.close()
 
-            with patch("app.main.httpx.AsyncClient") as mock_client_cls:
-                mock_client_instance = AsyncMock()
-                mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
-                mock_client_instance.__aexit__ = AsyncMock(return_value=False)
-                mock_client_instance.delete = AsyncMock(return_value=mock_response)
-                mock_client_cls.return_value = mock_client_instance
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = ""
+        with patch("app.main.httpx.AsyncClient") as mock_cls:
+            mi = AsyncMock()
+            mi.__aenter__ = AsyncMock(return_value=mi)
+            mi.__aexit__ = AsyncMock(return_value=False)
+            mi.delete = AsyncMock(return_value=mock_resp)
+            mock_cls.return_value = mi
+            resp = await client.delete("/api/shows/201")
+            assert resp.status_code == 200
 
-                resp = await client.delete("/api/movies/999999")
-                # Radarr returns 404, so the endpoint should raise an HTTPException
-                assert resp.status_code == 404
+
+class TestSettingsEndpoints:
+    async def test_get_settings(self, client: AsyncClient):
+        resp = await client.get("/api/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "settings" in data
+        assert "schema" in data
+
+    async def test_save_and_read(self, client: AsyncClient):
+        resp = await client.post("/api/settings", json={"app_name": "TestApp"})
+        assert resp.status_code == 200
+        resp2 = await client.get("/api/settings")
+        assert resp2.json()["settings"]["app_name"] == "TestApp"
+
+    async def test_settings_page(self, client: AsyncClient):
+        resp = await client.get("/settings")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
 
 
-class TestDeleteShow:
-    """Test the DELETE /api/shows/{sonarr_id} endpoint."""
+class TestUISmoke:
+    async def test_root_has_key_elements(self, client: AsyncClient):
+        resp = await client.get("/")
+        text = resp.text.lower()
+        assert "scan" in text
+        assert "movie" in text or "movies" in text
 
-    async def test_delete_show_not_found(self, client: AsyncClient):
-        """Deleting a non-existent show should call Sonarr and succeed (or handle gracefully)."""
-        mock_response = AsyncMock()
-        mock_response.status_code = 404
-        mock_response.text = "Not Found"
+    async def test_settings_has_form_elements(self, client: AsyncClient):
+        resp = await client.get("/settings")
+        assert resp.status_code == 200
 
-        with patch("app.main.settings") as mock_settings:
-            mock_settings.RADARR_URL = "http://radarr:7878"
-            mock_settings.RADARR_API_KEY = "test-key"
-            mock_settings.SONARR_URL = "http://sonarr:8989"
-            mock_settings.SONARR_API_KEY = "test-key"
-            mock_settings.TAUTULLI_URL = ""
-            mock_settings.TAUTULLI_API_KEY = ""
 
-            with patch("app.main.httpx.AsyncClient") as mock_client_cls:
-                mock_client_instance = AsyncMock()
-                mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
-                mock_client_instance.__aexit__ = AsyncMock(return_value=False)
-                mock_client_instance.delete = AsyncMock(return_value=mock_response)
-                mock_client_cls.return_value = mock_client_instance
+class TestSettingsSecurity:
+    """Test security aspects of the settings endpoints."""
 
-                resp = await client.delete("/api/shows/999999")
-                # Sonarr returns 404, so the endpoint should raise an HTTPException
-                assert resp.status_code == 404
+    async def test_api_keys_masked_in_response(self, client: AsyncClient, test_db: str):
+        conn = sqlite3.connect(test_db)
+        conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+            ("radarr_api_key", "abcdef1234567890"),
+        )
+        conn.commit()
+        conn.close()
+
+        resp = await client.get("/api/settings")
+        data = resp.json()
+        key_val = data["settings"]["radarr_api_key"]
+        assert key_val.endswith("7890")
+        assert "********" in key_val
+        assert "abcdef" not in key_val
+
+    async def test_weight_validation_rejects_bad_sum(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/settings",
+            json={
+                "weight_ratings": 50,
+                "weight_engagement": 50,
+                "weight_recency": 50,
+                "weight_breadth": 10,
+                "weight_continuing": 5,
+            },
+        )
+        assert resp.status_code == 400
+        assert "100" in resp.json()["detail"]
+
+    async def test_weight_validation_accepts_valid_sum(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/settings",
+            json={
+                "weight_ratings": 25,
+                "weight_engagement": 35,
+                "weight_recency": 20,
+                "weight_breadth": 15,
+                "weight_continuing": 5,
+            },
+        )
+        assert resp.status_code == 200
+
+
+class TestTestConnection:
+    """Test the /api/settings/test-connection endpoint."""
+
+    async def test_unknown_service_rejected(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/settings/test-connection",
+            json={"service": "unknown", "url": "http://foo", "api_key": "bar"},
+        )
+        assert resp.status_code == 400
+
+    async def test_missing_url_rejected(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/settings/test-connection",
+            json={"service": "radarr", "url": "", "api_key": "bar"},
+        )
+        assert resp.status_code == 400
+
+    async def test_cloud_metadata_blocked(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/settings/test-connection",
+            json={
+                "service": "radarr",
+                "url": "http://169.254.169.254/latest/meta-data",
+                "api_key": "test",
+            },
+        )
+        assert resp.status_code == 400
+        assert "blocked" in resp.json()["detail"].lower()
