@@ -11,7 +11,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- Runtime stage: lean final image ---
 FROM python:3.12-slim
 
-RUN groupadd -r prunarr && useradd -r -g prunarr -d /app prunarr && \
+ARG PUID=1000
+ARG PGID=1000
+RUN groupadd -g ${PGID} prunarr && useradd -u ${PUID} -g prunarr -d /app prunarr && \
     mkdir -p /config && chown prunarr:prunarr /config
 
 WORKDIR /app
