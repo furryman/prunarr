@@ -3,6 +3,10 @@ __pycache__
 *.pyo
 .git
 .gitignore
+.github
 .env
 *.md
 .dockerignore
+tests/
+.pytest_cache/
+.mypy_cache/

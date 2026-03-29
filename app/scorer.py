@@ -5,8 +5,8 @@ user breadth, and series status to produce a keep/delete recommendation.
 """
 
 import math
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+from typing import Any
 
 # Recommendation tier constants
 STRONG_DELETE = "STRONG_DELETE"
@@ -24,21 +24,22 @@ def format_size(size_bytes: int) -> str:
         return "0 B"
     if size_bytes < 1000:
         return f"{size_bytes} B"
+    value = float(size_bytes)
     for unit in ("KB", "MB", "GB", "TB"):
-        size_bytes = size_bytes / 1000.0
-        if size_bytes < 1000.0 or unit == "TB":
-            if size_bytes >= 100:
-                return f"{size_bytes:.0f} {unit}"
-            if size_bytes >= 10:
-                return f"{size_bytes:.1f} {unit}"
-            return f"{size_bytes:.2f} {unit}"
-    return f"{size_bytes:.1f} TB"
+        value = value / 1000.0
+        if value < 1000.0 or unit == "TB":
+            if value >= 100:
+                return f"{value:.0f} {unit}"
+            if value >= 10:
+                return f"{value:.1f} {unit}"
+            return f"{value:.2f} {unit}"
+    return f"{value:.1f} TB"
 
 
 def _score_ratings(
-    rt_score: Optional[int],
-    metacritic: Optional[int],
-    imdb_score: Optional[float],
+    rt_score: int | None,
+    metacritic: int | None,
+    imdb_score: float | None,
 ) -> tuple[float, str]:
     """Compute the rating factor (0-30 points).
 
@@ -102,7 +103,7 @@ def _score_engagement(play_count: int) -> tuple[float, str]:
     return points, desc
 
 
-def _score_recency(last_played_ts: Optional[int]) -> tuple[float, str]:
+def _score_recency(last_played_ts: int | None) -> tuple[float, str]:
     """Compute the recency factor (0-20 points) based on last played timestamp.
 
     Uses discrete values: today=20, <=30d=18, <=90d=15, <=180d=12,
@@ -111,8 +112,8 @@ def _score_recency(last_played_ts: Optional[int]) -> tuple[float, str]:
     if last_played_ts is None or last_played_ts == 0:
         return 0.0, "never played"
 
-    now = datetime.now(timezone.utc)
-    last_played = datetime.fromtimestamp(last_played_ts, tz=timezone.utc)
+    now = datetime.now(UTC)
+    last_played = datetime.fromtimestamp(last_played_ts, tz=UTC)
     days_ago = max(0.0, (now - last_played).total_seconds() / 86400.0)
 
     if days_ago < 1:
@@ -167,16 +168,16 @@ def _get_tier(score: float) -> str:
 
 
 def score_media(
-    rt_score: Optional[int] = None,
-    metacritic: Optional[int] = None,
-    imdb_score: Optional[float] = None,
+    rt_score: int | None = None,
+    metacritic: int | None = None,
+    imdb_score: float | None = None,
     play_count: int = 0,
-    last_played_ts: Optional[int] = None,
+    last_played_ts: int | None = None,
     size_bytes: int = 0,
     unique_users: int = 0,
     is_continuing: bool = False,
     total_episodes: int = 0,
-) -> dict:
+) -> dict[str, Any]:
     """Score a media item and return a recommendation.
 
     Args:

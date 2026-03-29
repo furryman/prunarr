@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
-from app.models import MediaItem, StatsResponse
+from app.models import StatsResponse
 from app.scorer import DELETE, STRONG_DELETE, format_size, score_media
 
 APP_DIR = Path(__file__).resolve().parent
@@ -116,19 +116,21 @@ async def _fetch_radarr_movies() -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for m in movies:
         ratings = m.get("ratings", {})
-        results.append({
-            "radarr_id": m.get("id"),
-            "title": m.get("title", "Unknown"),
-            "year": m.get("year"),
-            "size_bytes": m.get("sizeOnDisk", 0) or 0,
-            "poster_url": _extract_poster(m.get("images", [])),
-            "rt_score": _rating_or_none(ratings.get("rottenTomatoes", {}).get("value")),
-            "metacritic": _rating_or_none(ratings.get("metacritic", {}).get("value")),
-            "imdb_score": _rating_or_none(ratings.get("imdb", {}).get("value")),
-            "genres": ",".join(m.get("genres", [])),
-            "has_file": m.get("hasFile", False),
-            "media_type": "movie",
-        })
+        results.append(
+            {
+                "radarr_id": m.get("id"),
+                "title": m.get("title", "Unknown"),
+                "year": m.get("year"),
+                "size_bytes": m.get("sizeOnDisk", 0) or 0,
+                "poster_url": _extract_poster(m.get("images", [])),
+                "rt_score": _rating_or_none(ratings.get("rottenTomatoes", {}).get("value")),
+                "metacritic": _rating_or_none(ratings.get("metacritic", {}).get("value")),
+                "imdb_score": _rating_or_none(ratings.get("imdb", {}).get("value")),
+                "genres": ",".join(m.get("genres", [])),
+                "has_file": m.get("hasFile", False),
+                "media_type": "movie",
+            }
+        )
     return results
 
 
@@ -148,18 +150,20 @@ async def _fetch_sonarr_series() -> list[dict[str, Any]]:
     for s in series_list:
         stats = s.get("statistics", {})
         ratings = s.get("ratings", {})
-        results.append({
-            "sonarr_id": s.get("id"),
-            "title": s.get("title", "Unknown"),
-            "year": s.get("year"),
-            "size_bytes": stats.get("sizeOnDisk", 0) or 0,
-            "poster_url": _extract_poster(s.get("images", [])),
-            "imdb_score": _rating_or_none(ratings.get("imdb", {}).get("value")),
-            "genres": ",".join(s.get("genres", [])),
-            "status": s.get("status", ""),
-            "episodes": stats.get("episodeFileCount", 0) or 0,
-            "media_type": "show",
-        })
+        results.append(
+            {
+                "sonarr_id": s.get("id"),
+                "title": s.get("title", "Unknown"),
+                "year": s.get("year"),
+                "size_bytes": stats.get("sizeOnDisk", 0) or 0,
+                "poster_url": _extract_poster(s.get("images", [])),
+                "imdb_score": _rating_or_none(ratings.get("imdb", {}).get("value")),
+                "genres": ",".join(s.get("genres", [])),
+                "status": s.get("status", ""),
+                "episodes": stats.get("episodeFileCount", 0) or 0,
+                "media_type": "show",
+            }
+        )
     return results
 
 
@@ -234,7 +238,8 @@ async def _fetch_tautulli_history() -> dict[str, dict[str, Any]]:
 
 
 def _match_history(
-    title: str, history_map: dict[str, dict[str, Any]],
+    title: str,
+    history_map: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Match a media title to Tautulli history using case-insensitive lookup.
 
@@ -278,14 +283,25 @@ async def _insert_movie(
            reason, last_scan)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            movie["radarr_id"], movie["title"], movie.get("year"),
-            movie["size_bytes"], movie.get("poster_url"),
-            movie.get("rt_score"), movie.get("metacritic"),
+            movie["radarr_id"],
+            movie["title"],
+            movie.get("year"),
+            movie["size_bytes"],
+            movie.get("poster_url"),
+            movie.get("rt_score"),
+            movie.get("metacritic"),
             movie.get("imdb_score"),
-            history["play_count"], history["last_played"] or None,
-            history["unique_users"], movie.get("genres", ""),
-            "", "movie", 0,
-            rec["score"], rec["tier"], rec["reason"], now_ts,
+            history["play_count"],
+            history["last_played"] or None,
+            history["unique_users"],
+            movie.get("genres", ""),
+            "",
+            "movie",
+            0,
+            rec["score"],
+            rec["tier"],
+            rec["reason"],
+            now_ts,
         ),
     )
 
@@ -314,13 +330,25 @@ async def _insert_show(
            reason, last_scan)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            show["sonarr_id"], show["title"], show.get("year"),
-            show["size_bytes"], show.get("poster_url"),
-            None, None, show.get("imdb_score"),
-            history["play_count"], history["last_played"] or None,
-            history["unique_users"], show.get("genres", ""),
-            show.get("status", ""), "show", show.get("episodes", 0),
-            rec["score"], rec["tier"], rec["reason"], now_ts,
+            show["sonarr_id"],
+            show["title"],
+            show.get("year"),
+            show["size_bytes"],
+            show.get("poster_url"),
+            None,
+            None,
+            show.get("imdb_score"),
+            history["play_count"],
+            history["last_played"] or None,
+            history["unique_users"],
+            show.get("genres", ""),
+            show.get("status", ""),
+            "show",
+            show.get("episodes", 0),
+            rec["score"],
+            rec["tier"],
+            rec["reason"],
+            now_ts,
         ),
     )
 
@@ -378,16 +406,33 @@ async def scan_library() -> dict[str, str | int]:
 
 
 _MEDIA_COLUMNS: list[str] = [
-    "id", "radarr_id", "sonarr_id", "title", "year", "size_bytes",
-    "poster_url", "rt_score", "metacritic", "imdb_score", "play_count",
-    "last_played", "unique_users", "genres", "status", "media_type",
-    "episodes", "score", "tier", "reason", "last_scan",
+    "id",
+    "radarr_id",
+    "sonarr_id",
+    "title",
+    "year",
+    "size_bytes",
+    "poster_url",
+    "rt_score",
+    "metacritic",
+    "imdb_score",
+    "play_count",
+    "last_played",
+    "unique_users",
+    "genres",
+    "status",
+    "media_type",
+    "episodes",
+    "score",
+    "tier",
+    "reason",
+    "last_scan",
 ]
 
 
 def _row_to_media_item(row: aiosqlite.Row) -> dict[str, Any]:
     """Convert a database row to a MediaItem dict."""
-    d: dict[str, Any] = dict(zip(_MEDIA_COLUMNS, row))
+    d: dict[str, Any] = dict(zip(_MEDIA_COLUMNS, row, strict=False))
     d["size_human"] = format_size(d.get("size_bytes") or 0)
     d["last_played_human"] = _format_last_played(d.get("last_played"))
     return d
@@ -397,9 +442,7 @@ def _row_to_media_item(row: aiosqlite.Row) -> dict[str, Any]:
 async def get_movies() -> list[dict[str, Any]]:
     """Return all movies sorted by size descending."""
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT * FROM media WHERE media_type = 'movie' ORDER BY size_bytes DESC"
-        )
+        cursor = await db.execute("SELECT * FROM media WHERE media_type = 'movie' ORDER BY size_bytes DESC")
         rows = await cursor.fetchall()
     return [_row_to_media_item(row) for row in rows]
 
@@ -408,9 +451,7 @@ async def get_movies() -> list[dict[str, Any]]:
 async def get_shows() -> list[dict[str, Any]]:
     """Return all shows sorted by size descending."""
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT * FROM media WHERE media_type = 'show' ORDER BY size_bytes DESC"
-        )
+        cursor = await db.execute("SELECT * FROM media WHERE media_type = 'show' ORDER BY size_bytes DESC")
         rows = await cursor.fetchall()
     return [_row_to_media_item(row) for row in rows]
 
@@ -419,19 +460,13 @@ async def get_shows() -> list[dict[str, Any]]:
 async def get_stats() -> StatsResponse:
     """Return aggregate statistics from the database."""
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT COALESCE(SUM(size_bytes), 0), COUNT(*) FROM media"
-        )
+        cursor = await db.execute("SELECT COALESCE(SUM(size_bytes), 0), COUNT(*) FROM media")
         total_size, total_items = await cursor.fetchone()  # type: ignore[misc]
 
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM media WHERE media_type = 'movie'"
-        )
+        cursor = await db.execute("SELECT COUNT(*) FROM media WHERE media_type = 'movie'")
         movies_count: int = (await cursor.fetchone())[0]  # type: ignore[index]
 
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM media WHERE media_type = 'show'"
-        )
+        cursor = await db.execute("SELECT COUNT(*) FROM media WHERE media_type = 'show'")
         shows_count: int = (await cursor.fetchone())[0]  # type: ignore[index]
 
         cursor = await db.execute(
@@ -440,13 +475,9 @@ async def get_stats() -> StatsResponse:
         )
         reclaimable_size: int = (await cursor.fetchone())[0]  # type: ignore[index]
 
-        cursor = await db.execute(
-            "SELECT tier, COUNT(*) FROM media GROUP BY tier"
-        )
+        cursor = await db.execute("SELECT tier, COUNT(*) FROM media GROUP BY tier")
         tier_rows = await cursor.fetchall()
-        tier_counts: dict[str, int] = {
-            row[0]: row[1] for row in tier_rows if row[0]
-        }
+        tier_counts: dict[str, int] = {row[0]: row[1] for row in tier_rows if row[0]}
 
     return StatsResponse(
         total_size=total_size,
@@ -565,4 +596,4 @@ async def proxy_poster(
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     """Serve the main web interface."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
